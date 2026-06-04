@@ -23,11 +23,11 @@ module async_fifo_core #(
 );
 
 wire [ADDR_WIDTH:0] wptr_gray, rptr_gray;
-// ensures rempty comes on the correct clk or it comes one clk late 
+
 wire [ADDR_WIDTH:0] rptr_next = rptr + (rinc && !rempty);
-wire [ADDR_WIDTH:0] rptr_gray_next = rptr_next ^ (rptr_next >> 1);
-// ensures wfull comes on the correct clk or it comes one clk late
 wire [ADDR_WIDTH:0] wptr_next = wptr + (winc && !wfull);
+
+wire [ADDR_WIDTH:0] rptr_gray_next = rptr_next ^ (rptr_next >> 1);
 wire [ADDR_WIDTH:0] wptr_gray_next = wptr_next ^ (wptr_next >> 1);
 
 
@@ -41,7 +41,6 @@ assign wptr_gray = wptr^(wptr>> 1);
 assign rptr_gray = rptr^(rptr>> 1);
 assign rdata = async_fifo[rptr[ADDR_WIDTH-1:0]];
 
-// Negedge rst prevent random power spikes in rst track to trigger rst
 always@(posedge wclk or negedge wrst_n)begin
     if (wrst_n == 0) begin
         wfull <= 0;
