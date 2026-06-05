@@ -1,4 +1,4 @@
-module tb_final_axi;
+module tb_pure_read_axi;
 
     parameter DATA_WIDTH = 69;
 
@@ -82,29 +82,6 @@ module tb_final_axi;
         forever #5 s_axi_aclk = ~s_axi_aclk;
     end
 
-    task axi_write;
-        input [31:0] addr;
-        input [31:0] data;
-        begin
-            @(posedge s_axi_aclk);
-            s_axi_awaddr = addr;
-            s_axi_wdata = data;
-            s_axi_wstrb = 4'b1111;
-            s_axi_awvalid = 1;
-            s_axi_wvalid = 1;
-            s_axi_bready = 1;
-
-            wait(s_axi_awready && s_axi_wready);
-            @(posedge s_axi_aclk);
-            s_axi_awvalid = 0;
-            s_axi_wvalid = 0;
-
-            wait(s_axi_bvalid);
-            @(posedge s_axi_aclk);
-            s_axi_bready = 0;
-        end
-    endtask
-
     task axi_read;
         input [31:0] addr;
         begin
@@ -112,21 +89,31 @@ module tb_final_axi;
             s_axi_araddr = addr;
             s_axi_arvalid = 1;
             s_axi_rready = 1;
+            $display("Time: %0t | START READ | Address: %0h", $time, addr);
 
             wait(s_axi_arready);
             @(posedge s_axi_aclk);
             s_axi_arvalid = 0;
+            $display("Time: %0t | HANDSHAKE | Slave accepted address", $time);
+
+            wait(rom_valid_wire);
+            $display("Time: %0t | ROM FETCH | Data out from ROM: %0h", $time, rom_data_wire);
 
             wait(s_axi_rvalid);
-            $display("Time: %0t | READ ADDR: %0h | RDATA: %0h", $time, addr, s_axi_rdata);
+            $display("Time: %0t | AXI VALID | Bus Data Out: %0h", $time, s_axi_rdata);
+            
             @(posedge s_axi_aclk);
             s_axi_rready = 0;
+            $display("Time: %0t | COMPLETE  | Master cleared read", $time);
+            $display("----------------------------------------");
         end
     endtask
 
+    integer i;
+
     initial begin
-        $dumpfile("axi_tb.vcd");
-        $dumpvars(0, tb_final_axi);
+        $dumpfile("axi_pure_read.vcd");
+        $dumpvars(0, tb_pure_read_axi);
 
         s_axi_aresetn = 0;
         s_axi_awaddr = 0;
@@ -144,17 +131,10 @@ module tb_final_axi;
         s_axi_aresetn = 1;
         #20;
 
-        axi_read(32'h00000000);
-        #10;
-        
-        axi_read(32'h00000003);
-        #10;
-
-        axi_write(32'h00000010, 32'hDEADBEEF);
-        #10;
-
-        axi_read(32'h00000007);
-        #10;
+        for (i = 0; i < 8; i = i + 1) begin
+            axi_read(i);
+            #10;
+        end
 
         $finish;
     end
