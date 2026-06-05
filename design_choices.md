@@ -10,3 +10,7 @@
 
 * fixed using rptr_next, wptr_next(all of this is in gray code)
 ![alt text](working_async_fifo.png)
+
+### axi_slave_fsm
+works with elaborative writing tb
+![alt text](axi_slave_writing.png)

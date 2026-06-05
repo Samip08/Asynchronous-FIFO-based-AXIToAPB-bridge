@@ -1,0 +1,290 @@
+$date
+	Fri Jun 05 14:26:53 2026
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1s
+$end
+$scope module tb_axi_slave_fsm $end
+$var wire 32 ! s_axi_rdata [31:0] $end
+$var wire 1 " wfifo_wen $end
+$var wire 69 # wfifo_wdata [68:0] $end
+$var wire 1 $ s_axi_wready $end
+$var wire 1 % s_axi_rvalid $end
+$var wire 2 & s_axi_rresp [1:0] $end
+$var wire 1 ' s_axi_bvalid $end
+$var wire 2 ( s_axi_bresp [1:0] $end
+$var wire 1 ) s_axi_awready $end
+$var wire 1 * s_axi_arready $end
+$var parameter 32 + DATA_WIDTH $end
+$var reg 1 , s_axi_aclk $end
+$var reg 32 - s_axi_araddr [31:0] $end
+$var reg 1 . s_axi_aresetn $end
+$var reg 1 / s_axi_arvalid $end
+$var reg 32 0 s_axi_awaddr [31:0] $end
+$var reg 1 1 s_axi_awvalid $end
+$var reg 1 2 s_axi_bready $end
+$var reg 1 3 s_axi_rready $end
+$var reg 32 4 s_axi_wdata [31:0] $end
+$var reg 4 5 s_axi_wstrb [3:0] $end
+$var reg 1 6 s_axi_wvalid $end
+$var reg 1 7 wfifo_full $end
+$scope module uut $end
+$var wire 1 , s_axi_aclk $end
+$var wire 32 8 s_axi_araddr [31:0] $end
+$var wire 1 . s_axi_aresetn $end
+$var wire 1 / s_axi_arvalid $end
+$var wire 32 9 s_axi_awaddr [31:0] $end
+$var wire 1 1 s_axi_awvalid $end
+$var wire 1 2 s_axi_bready $end
+$var wire 32 : s_axi_rdata [31:0] $end
+$var wire 1 3 s_axi_rready $end
+$var wire 32 ; s_axi_wdata [31:0] $end
+$var wire 4 < s_axi_wstrb [3:0] $end
+$var wire 1 6 s_axi_wvalid $end
+$var wire 1 7 wfifo_full $end
+$var parameter 32 = DATA_WIDTH $end
+$var parameter 2 > SW_IDLE $end
+$var parameter 2 ? SW_RESPONSE $end
+$var parameter 2 @ SW_WAITING $end
+$var parameter 2 A SW_WRITING $end
+$var reg 32 B axi_awaddr_reg [31:0] $end
+$var reg 32 C axi_wdata_reg [31:0] $end
+$var reg 4 D axi_wstrb_reg [3:0] $end
+$var reg 1 * s_axi_arready $end
+$var reg 1 ) s_axi_awready $end
+$var reg 2 E s_axi_bresp [1:0] $end
+$var reg 1 ' s_axi_bvalid $end
+$var reg 2 F s_axi_rresp [1:0] $end
+$var reg 1 % s_axi_rvalid $end
+$var reg 1 $ s_axi_wready $end
+$var reg 1 G sw_axi_awvalid_recieved $end
+$var reg 1 H sw_axi_wvalid_recieved $end
+$var reg 2 I sw_curr_state [1:0] $end
+$var reg 2 J sw_next_state [1:0] $end
+$var reg 69 K wfifo_wdata [68:0] $end
+$var reg 1 " wfifo_wen $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+$comment Show the parameter values. $end
+$dumpall
+b11 A
+b1 @
+b10 ?
+b0 >
+b1000101 =
+b1000101 +
+$end
+#0
+$dumpvars
+b0 K
+b0 J
+b0 I
+0H
+0G
+bx F
+b0 E
+b0 D
+b0 C
+b0 B
+b0 <
+b0 ;
+bz :
+b0 9
+b0 8
+07
+06
+b0 5
+b0 4
+13
+12
+01
+b0 0
+0/
+0.
+b0 -
+0,
+x*
+0)
+b0 (
+0'
+bx &
+x%
+0$
+b0 #
+0"
+bz !
+$end
+#5
+1,
+#10
+0,
+#15
+1,
+#20
+0,
+#25
+1,
+#30
+0,
+#35
+1,
+#40
+0,
+1.
+#45
+b1 J
+b10000 B
+1G
+11
+b10000 0
+b10000 9
+1,
+#50
+0,
+#55
+b1 I
+1,
+#60
+0,
+#65
+1,
+#70
+0,
+#75
+b11 J
+b1111 D
+b10101010101010100001000100010001 C
+1H
+16
+b1111 5
+b1111 <
+b10101010101010100001000100010001 4
+b10101010101010100001000100010001 ;
+1,
+#80
+0,
+#85
+b10 J
+b11 I
+1,
+#90
+0,
+#95
+b0 J
+b100000000000000000000000000010000101010101010101000010001000100011111 #
+b100000000000000000000000000010000101010101010101000010001000100011111 K
+1"
+1$
+1)
+b10 I
+1,
+#100
+0,
+#105
+0H
+0G
+b0 #
+b0 K
+0"
+1'
+0$
+0)
+b0 I
+06
+01
+1,
+#110
+0,
+#115
+0'
+1,
+#120
+0,
+#125
+1,
+#130
+0,
+#135
+b1 J
+b10111011101110110010001000100010 C
+1H
+16
+b10111011101110110010001000100010 4
+b10111011101110110010001000100010 ;
+1,
+#140
+0,
+#145
+b1 I
+1,
+#150
+0,
+#155
+1,
+#160
+0,
+#165
+b11 J
+b100000 B
+1G
+11
+b100000 0
+b100000 9
+1,
+#170
+0,
+#175
+b10 J
+b11 I
+1,
+#180
+0,
+#185
+b0 J
+b100000000000000000000000000100000101110111011101100100010001000101111 #
+b100000000000000000000000000100000101110111011101100100010001000101111 K
+1"
+1$
+1)
+b10 I
+1,
+#190
+0,
+#195
+0H
+0G
+b0 #
+b0 K
+0"
+1'
+0$
+0)
+b0 I
+06
+01
+1,
+#200
+0,
+#205
+0'
+1,
+#210
+0,
+#215
+1,
+#220
+0,
+#225
+1,
+#230
+0,
+#235
+1,
+#240
+0,
+#245
+1,
