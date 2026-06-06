@@ -5,15 +5,15 @@
 * rptr_gray_next, wptr_gray_next ensure the empty/full condition flips at correct clk cycle prevent overwrite/reading garbage value
 * using rptr/wptr for empty/full logic allows wptr to go above 10(16 height) to 11 while rptr is at 00 essentially overwriting data
 * rptr reads a data yet to be published from write side
-![alt text](overwriting_wptr_full.png)
-![alt text](reading_unpublished_rptr_empty.png)
+![alt text](Waveforms/overwriting_wptr_full.png)
+![alt text](Waveforms/reading_unpublished_rptr_empty.png)
 
 * fixed using rptr_next, wptr_next(all of this is in gray code)
-![alt text](working_async_fifo.png)
+![alt text](/Waveforms/working_async_fifo.png)
 
 ### axi_slave_fsm
 * works with elaborative writing tb and with read tb
-![alt text](axi_slave_writing.png)
+![alt text](Waveforms/axi_slave_writing.png)
 
 * in the write part the valid signals usually come together but might come apart by 1 cycle hence need to be latched and need to have a recieved toggle because for state shift we might not have both high together
 
@@ -48,3 +48,15 @@
     rom_memory.v--> slave side(module) mem_valid(sending data), s_axi_rdata_rom(actual data)
     slave side--> master s_axi_rvalid(sent signal), s_axi_rresp
     master--> slave side s_axi_rready(master has recieved signal)
+
+### apb_master_fsm.v
+* working with the read, write error handling integrated case
+![alt text](Waveforms/apb_master_fsm.png)
+
+* reads incoming value from the read side of the asynchronous fifo incase its not empty and follows the read/write path, switches to error state and resets incase any errors inbound in device
+* m_apb_presetn is asynchronous reset, m_apb_pslverr_mux goes high if system has an error, m_apb_busy prevents inputs from coming from the fifo side
+* we allow one clk cycle delay as it needs to send rfifo_ren high so the sender knows it can send data sender recieves enable by end of cycle one checked on cycle 2 and immediately sends data if we didnt adjust delay by end of cycle 1 M_IDLE state would move to M_WAITING and make a decision on read/write based on older garbage value 
+* M_WAITING sends rfifo_ren again 0 to prevent sending further values decides based on fifo request if it follows write or read path
+* in M_READING state sends m_apb_psel_global asking peripheral to wakeup alongside m_pb_penable triggering m_apb_valid when it reads the sent data and sends a recived signal back next cycle reads m_apb_pready goes to M_IDLE state
+* M_WRITING has a counter for checking 2 as when it is 1 we write previously latched output and send alongside m_apb_psel_global waking up peripheral next cycle sends m_apb_penable high to ensure value is read on the other side when it recives m_apb_pready goes to M_IDLE state
+* if anypoint here instead of M_IDLE it faces an error m_apb_pslverr_mux goes high pushing into M_RESPONSE for error log sets all data exit flags 0 and returns to M_IDLE.

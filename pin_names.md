@@ -1,4 +1,4 @@
-Module 1: axi_slave_fsm.v (AXI Clock Domain)
+<!-- Module 1: axi_slave_fsm.v (AXI Clock Domain)
 This module interfaces directly with the master CPU. It captures the address and data phases using standard AXI4-Lite handshake logic and prepares the packet for the FIFO.
 
 Inputs:
@@ -47,9 +47,9 @@ s_axi_rvalid — Slave valid signal for read data.
 
 wfifo_wen — Write enable control line to push data into the FIFO.
 
-wfifo_wdata[68:0] — The compiled packet to write into the FIFO (typically containing Address + Data + Write/Read Command flag + Strobes).
+wfifo_wdata[68:0] — The compiled packet to write into the FIFO (typically containing Address + Data + Write/Read Command flag + Strobes). -->
 
-Module 2: async_fifo_core.v (Dual Clock Domain)
+<!-- Module 2: async_fifo_core.v (Dual Clock Domain)
 The central mailbox. It houses the storage registers and handles the Gray-coded pointer synchronization loops across the asynchronous clock boundary.
 
 Inputs:
@@ -74,9 +74,9 @@ rdata[68:0] (connected to rfifo_rdata) — Parallel data packet popped out of st
 
 wfull (connected to wfifo_full) — Full flag generated synchronously to the write clock.
 
-rempty (connected to rfifo_empty) — Empty flag generated synchronously to the read clock.
+rempty (connected to rfifo_empty) — Empty flag generated synchronously to the read clock. -->
 
-Module 3: apb_master_fsm.v (APB Clock Domain)
+<!-- Module 3: apb_master_fsm.v (APB Clock Domain)
 This module watches the FIFO read port, pulls down transaction requests when the empty flag drops, and drives the global APB bus through its 3-phase execution cycle.
 
 Inputs:
@@ -109,7 +109,7 @@ m_apb_pstrb[3:0] — Outbound byte selection strobes.
 
 m_apb_penable — Strobe used to transition the APB bus from the Setup Phase into the Access Phase.
 
-m_apb_psel_global — Master select signal indicating an active peripheral access cycle is underway.
+m_apb_psel_global — Master select signal indicating an active peripheral access cycle is underway. -->
 
 Module 4: apb_slave_mux.v (APB Clock Domain)
 The address decoder and routing matrix. It splits the master select signal into dedicated lines for individual peripherals and filters return traffic back to the master.
