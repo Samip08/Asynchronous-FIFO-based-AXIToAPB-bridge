@@ -1,4 +1,4 @@
-### asynch_fifo_core
+### asynch_fifo_core.v
 * gray coded pointers for synchronizing across read and write clk domains, using binary for local usage
 * gray code pointers used only empty full logic
 * Negedge rst prevent random power spikes in rst track to trigger rst
@@ -11,7 +11,7 @@
 * fixed using rptr_next, wptr_next(all of this is in gray code)
 ![alt text](/Waveforms/working_async_fifo.png)
 
-### axi_slave_fsm
+### axi_slave_fsm.v
 * works with elaborative writing tb and with read tb
 ![alt text](Waveforms/axi_slave_writing.png)
 
@@ -60,3 +60,10 @@
 * in M_READING state sends m_apb_psel_global asking peripheral to wakeup alongside m_pb_penable triggering m_apb_valid when it reads the sent data and sends a recived signal back next cycle reads m_apb_pready goes to M_IDLE state
 * M_WRITING has a counter for checking 2 as when it is 1 we write previously latched output and send alongside m_apb_psel_global waking up peripheral next cycle sends m_apb_penable high to ensure value is read on the other side when it recives m_apb_pready goes to M_IDLE state
 * if anypoint here instead of M_IDLE it faces an error m_apb_pslverr_mux goes high pushing into M_RESPONSE for error log sets all data exit flags 0 and returns to M_IDLE.
+
+
+### apb_slave_mux.v
+* slave id is given by 4 bits of address as parameter slave number is 16
+* all slaves send their data prdata_slaves , only the slave which we need to sample data from holds its one hot encoded value high pready_slaves when m_apb_sel_global goes high, ex slave 5 16'b0000000000010000
+* pslverr_slaves and  pslverrmsg_slaves for any sort of error and error message
+* sends all this data output
