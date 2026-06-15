@@ -6,10 +6,10 @@ module apb_slave_mux #(
     input  wire                          m_apb_psel_global,
 
     // data from slaves
-    input  wire [c_apb_num_slaves-1:0][31:0] prdata_slaves,// all send their data 
+    input  wire [(c_apb_num_slaves*32)-1:0]  prdata_slaves,// all send their data 
     input  wire [c_apb_num_slaves-1:0]       pready_slaves,// signal slave sends for handhshake 
     input  wire [c_apb_num_slaves-1:0]       pslverr_slaves,// if one of them have an error comes here 
-    input  wire [c_apb_num_slaves-1:0][31:0] pslverrmsg_slaves,
+    input  wire [(c_apb_num_slaves*32)-1:0]  pslverrmsg_slaves,
 
     // output to slaves 
     output wire [c_apb_num_slaves-1:0]       m_apb_psel, //simple decoder based on value of [31:28] bits 
@@ -29,9 +29,9 @@ assign m_apb_psel = (m_apb_psel_global)? 1'b1<< slave_idx: {c_apb_num_slaves{1'b
 always@(*)begin
     if (m_apb_psel_global) begin
         if(!pslverr_slaves[slave_idx])begin
-            m_apb_prdata      = prdata_slaves[slave_idx];
+            m_apb_prdata      = prdata_slaves[slave_idx * 32 +: 32];
             m_apb_pready      = pready_slaves[slave_idx];
-            m_apb_pslverr_mux = pslverr_slaves[slave_idx];
+            m_apb_pslverr_mux = pslverr_slaves[slave_idx * 32 +: 32];
         end else begin
         m_apb_prdata      = 0;
         m_apb_pready      = 0;

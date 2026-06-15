@@ -14,9 +14,9 @@ module async_fifo_core #(
     input  wire                    rrst_n,
     input  wire                    rinc,
 
-    // Write Domain Inputs (AXI Clock Domain)
+    // Write Domain Outputs (AXI Clock Domain)
     output reg                     wfull,
-    // Read Domain Inputs (APB Clock Domain)
+    // Read Domain Outputs (APB Clock Domain)
     output wire [DATA_WIDTH-1:0]   rdata,
     output reg                     rempty
 
