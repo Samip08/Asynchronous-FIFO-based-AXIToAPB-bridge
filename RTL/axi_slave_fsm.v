@@ -48,7 +48,10 @@ module axi_slave_fsm #(
 
     // Async fifo write interface
     output reg                     wfifo_wen,
-    output reg  [DATA_WIDTH-1:0]   wfifo_wdata
+    output reg  [DATA_WIDTH-1:0]   wfifo_wdata,
+    output reg  [1:0]              sr_axi_slave_state,
+    output reg  [1:0]              sw_axi_slave_state
+
 );
 
 parameter SW_IDLE = 2'b00;
@@ -80,17 +83,17 @@ always@(*)begin
         case(sw_curr_state)
             SW_IDLE:begin
                 if(sw_axi_awvalid_recieved || sw_axi_wvalid_recieved)begin
-                    sw_next_state <= SW_WAITING;
+                    sw_next_state = SW_WAITING;
                 end else begin
-                    sw_next_state <= SW_IDLE;
+                    sw_next_state = SW_IDLE;
                 end
             end
 
             SW_WAITING:begin
                 if(sw_axi_awvalid_recieved && sw_axi_wvalid_recieved && !wfifo_full)begin
-                    sw_next_state <= SW_WRITING;
+                    sw_next_state = SW_WRITING;
                 end else begin
-                    sw_next_state <= SW_WAITING;
+                    sw_next_state = SW_WAITING;
                 end
             end
 
@@ -98,20 +101,20 @@ always@(*)begin
                 // if(sw_awaddr_handshake && sw_wdata_handshake)begin
                 //     sw_next_state <= SW_RESPONSE;
                 // end else begin
-                sw_next_state <= SW_RESPONSE;
+                sw_next_state = SW_RESPONSE;
                 // end
             end
 
             SW_RESPONSE:begin
                 if(s_axi_bready)begin
-                    sw_next_state <= SW_IDLE;
+                    sw_next_state = SW_IDLE;
                 end else begin
-                    sw_next_state <= SW_RESPONSE;
+                    sw_next_state = SW_RESPONSE;
                 end
             end 
 
             default:begin
-                sw_next_state <= SW_IDLE;
+                sw_next_state = SW_IDLE;
             end
         endcase
     end
@@ -119,41 +122,42 @@ end
 
 always@(*)begin
     if(!s_axi_aresetn)begin
-        sr_next_state <= SR_IDLE;
+        sr_next_state = SR_IDLE;
     end else begin
         case(sr_curr_state)
             SR_IDLE:begin
                 if(sr_axi_arvalid_recieved)begin
-                    sr_next_state <= SR_READING;
+                    sr_next_state = SR_READING;
                 end else begin
-                    sr_next_state <= SR_IDLE;
+                    sr_next_state = SR_IDLE;
                 end
             end
 
             SR_READING:begin
                 if(mem_valid_recieved )begin
-                    sr_next_state <= SR_RESPONSE;
+                    sr_next_state = SR_RESPONSE;
                 end else begin
-                sr_next_state <= SR_READING;
+                sr_next_state = SR_READING;
                 end
             end
 
             SR_RESPONSE:begin
                 if(s_axi_rready)begin
-                    sr_next_state <= SR_IDLE;
+                    sr_next_state = SR_IDLE;
                 end else begin
-                    sr_next_state <= SR_RESPONSE;
+                    sr_next_state = SR_RESPONSE;
                 end
             end 
 
             default:begin
-                sr_next_state <= SR_IDLE;
+                sr_next_state = SR_IDLE;
             end
         endcase
     end
 end
 
 always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
+    sw_axi_slave_state <= sw_next_state;
     if(!s_axi_aresetn)begin
         s_axi_awready <= 0;
         s_axi_wready <= 0;
@@ -210,6 +214,17 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
                 s_axi_bresp <= 0;
                 s_axi_bvalid <=0;
 
+                if( axi_awaddr_reg[31:28] == 4'h2)begin
+                    s_axi_bresp <= 2'b10;
+                    wfifo_wen <= 1;    //checking output top_module_tb log w enable 1 for xxxxxxxxx value
+                    wfifo_wdata <= {1'b1, axi_awaddr_reg, 32'h0, axi_wstrb_reg};
+                end else begin
+                    s_axi_bresp <= 2'b00;
+                    wfifo_wen <= 1;
+                    wfifo_wdata <= {1'b1, axi_awaddr_reg, axi_wdata_reg, axi_wstrb_reg};
+
+                end
+                
                 // if (s_axi_awvalid && s_axi_awready) aw_hs_done <= 1;
                 // if (s_axi_wvalid && s_axi_wready) w_hs_done <= 1;
                 
@@ -218,10 +233,9 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
                 //     wfifo_wdata <= {1'b1, axi_awaddr_reg, axi_wdata_reg, axi_wstrb_reg};
                 // end else begin
                 //     wfifo_wen <= 0;
-                // end  
-                 wfifo_wen <= 1;
-                wfifo_wdata <= {1'b1, axi_awaddr_reg, axi_wdata_reg, axi_wstrb_reg};
-            end
+                // end 
+            end 
+                
 
             SW_RESPONSE:begin
                 s_axi_awready <= 0;
@@ -232,12 +246,19 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
                 wfifo_wdata <= 0;
                 sw_axi_awvalid_recieved <= 0;
                 sw_axi_wvalid_recieved <= 0;
+
+                if(axi_awaddr_reg[31:28] == 4'h2)begin
+                    s_axi_bresp <= 2'b10;
+                end else begin
+                    s_axi_bresp <= 2'b00;
+                end
             end
         endcase
     end
 end 
 
 always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
+    sr_axi_slave_state <= sr_next_state;
     if(!s_axi_aresetn)begin
         s_axi_arready <= 0;
         s_axi_rresp <= 0;

@@ -13,7 +13,8 @@
 
 ### axi_slave_fsm.v
 * works with elaborative writing tb and with read tb
-![alt text](Waveforms/axi_slave_writing.png)
+![alt text](Waveforms/axi_slave.png)
+* also removed the enable to write incase of error and put value of xxxxxxxx
 
 * in the write part the valid signals usually come together but might come apart by 1 cycle hence need to be latched and need to have a recieved toggle because for state shift we might not have both high together
 

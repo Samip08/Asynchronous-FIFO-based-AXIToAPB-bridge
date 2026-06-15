@@ -49,6 +49,9 @@ module Top_module_tb;
     wire [C_APB_NUM_SLAVES-1:0]      pready_slaves;
     wire [C_APB_NUM_SLAVES-1:0]      pslverr_slaves;
     wire [(C_APB_NUM_SLAVES*32)-1:0] pslverrmsg_slaves;
+    wire [2:0]                       m_apb_master_state;
+    wire [1:0]                       sw_axi_slave_state , sr_axi_slave_state;
+    wire                             apb_master_busy;
 
     // =========================================================
     // SMART SLAVE MOCK LOGIC
@@ -102,7 +105,11 @@ module Top_module_tb;
         .m_apb_pwdata(m_apb_pwdata),
         .m_apb_pstrb(m_apb_pstrb),
         .m_apb_psel(m_apb_psel),
-        .m_apb_pslverrmsg_mux(m_apb_pslverrmsg_mux)
+        .m_apb_pslverrmsg_mux(m_apb_pslverrmsg_mux),
+        .m_apb_master_state(m_apb_master_state),
+        .sw_axi_slave_state(sw_axi_slave_state),
+        .sr_axi_slave_state(sr_axi_slave_state),
+        .apb_master_busy(apb_master_busy)
     );
 
     // =========================================================
@@ -117,10 +124,42 @@ module Top_module_tb;
     always #20 m_apb_pclk = ~m_apb_pclk;
 
     // =========================================================
+    // APB BUS SNOOPER (THE MEANINGFUL DATA)
+    // =========================================================
+    // This block triggers exactly when the APB Master drives the bus
+    always @(posedge m_apb_pclk) begin
+        if (m_apb_presetn && m_apb_penable && m_apb_psel != 0) begin
+            
+            // Check if it's a Write or a Read
+            if (m_apb_pwrite) begin
+                $display("[%0t ns] [APB SNOOP] WRITE Executed | Addr: 0x%h | TRUE Bus Data: 0x%h", 
+                         $time, m_apb_paddr, m_apb_pwdata);
+            
+            end else begin
+                if(!apb_master_busy)
+                $display("[%0t ns] [APB SNOOP] READ Executed  | Addr: 0x%h", 
+                         $time, m_apb_paddr);
+            end
+
+            // Check if the target slave threw a hardware error
+            if (pslverr_slaves != 0) begin
+                $display("[%0t ns] >>>> [APB ERROR TRIGGERED] PSLVERR high for Addr: 0x%h!", 
+                         $time, m_apb_paddr);
+            end
+        end
+    end
+
+    // =========================================================
     // STIMULUS TASK: AXI WRITE TRANSACTION
     // =========================================================
     task axi_master_write(input [31:0] addr, input [31:0] data);
         begin
+            // Wait for bridge to be ready to accept new requests
+            if (apb_master_busy) begin
+                $display("[%0t ns] [WAIT] Bridge busy, waiting for IDLE...", $time);
+                wait(!apb_master_busy);
+            end
+
             @(posedge s_axi_aclk);
             s_axi_awaddr  = addr;
             s_axi_wdata   = data;
@@ -134,12 +173,12 @@ module Top_module_tb;
             @(posedge s_axi_aclk);
             s_axi_awvalid = 0;
             s_axi_wvalid  = 0;
-
-            // Wait for write response
+            
+            // Wait for completion (bvalid)
             wait(s_axi_bvalid);
             @(posedge s_axi_aclk);
             s_axi_bready = 0;
-            $display("[AXI WRITE DONE] Addr: 0x%h -> Data: 0x%h | Resp: 2'b%b", addr, data, s_axi_bresp);
+            $display("[%0t ns] [AXI INPUT] Stimulus complete. BRESP: 2'b%b", $time, s_axi_bresp);
         end
     endtask
 
@@ -170,14 +209,14 @@ module Top_module_tb;
         $display("\n=== STARTING BRIDGE PIPELINE FLOW TEST ===");
 
         // TEST 1: Write to Slave 5 (Clean execution path)
-        // Address starts with 0x5... to trigger Slave index 5
         axi_master_write(32'h5000_CAFE, 32'hDEAD_BEEF);
         #200;
 
         // TEST 2: Write to Slave 2 (Intentionally triggers ERROR path)
-        // Address starts with 0x2... to trigger Slave index 2 error logic
         axi_master_write(32'h2000_BABA, 32'hAAAA_5555);
         #200;
+
+        repeat(20) @(posedge m_apb_pclk);
 
         $display("=== SIMULATION COMPLETE ===");
         $finish;

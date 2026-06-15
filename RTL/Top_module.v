@@ -55,9 +55,16 @@ module Top_module #(
     output wire                              m_apb_pwrite, 
     output wire [C_DATA_WIDTH-1:0]           m_apb_pwdata, 
     output wire [STRB_WIDTH-1:0]             m_apb_pstrb, 
+    output wire                              apb_master_busy,
 
     output wire [C_APB_NUM_SLAVES-1:0]       m_apb_psel, 
-    output wire [C_DATA_WIDTH-1:0]           m_apb_pslverrmsg_mux
+    output wire [C_DATA_WIDTH-1:0]           m_apb_pslverrmsg_mux,
+
+    //STATES
+    output wire [1:0]                        sw_axi_slave_state,
+    output wire [1:0]                        sr_axi_slave_state,
+    output wire [2:0]                        m_apb_master_state
+
 );
 
 wire[C_DATA_WIDTH-1:0] rom_data, m_apb_prdata;
@@ -65,7 +72,6 @@ wire[APB_MASTER_DATA_WIDTH-1:0] wfifo_data, rfifo_data;
 wire wfifo_full, rom_valid, s_axi_ext_rena_rom, wfifo_ena, rfifo_empty, rfifo_ena,m_apb_pready, m_apb_pslverr_mux, m_apb_psel_global;
 wire [ROM_ADDR_WIDTH-1:0] rom_addr;
 
-wire apb_master_busy;
 wire apb_rvalid_high = 1'b1; // always allowed to read
 wire apb_rvalid_received_status;
 
@@ -116,7 +122,10 @@ axi_slave_fsm axi_slave_fsm_block(
 
     // Async fifo write interface
     .wfifo_wen(wfifo_ena),
-    .wfifo_wdata(wfifo_data)
+    .wfifo_wdata(wfifo_data),
+    .sw_axi_slave_state(sw_axi_slave_state),
+    .sr_axi_slave_state(sr_axi_slave_state)
+
 );
 
 
@@ -164,14 +173,16 @@ apb_master_fsm apb_master_fsm_block (
     .rfifo_ren(rfifo_ena),     
     
     // Outputs (to Peripherals)
-    .m_apb_busy(apb_master_busy), //doesnt output
+    .m_apb_busy(apb_master_busy), // output
     .m_apb_paddr(m_apb_paddr),    
     .m_apb_pwrite(m_apb_pwrite),   
     .m_apb_pwdata(m_apb_pwdata),   
     .m_apb_pstrb(m_apb_pstrb),    
     .m_apb_penable(m_apb_penable),
     .m_apb_rvalid_recieved(apb_rvalid_received_status),  //doesnt output
-    .m_apb_psel_global(m_apb_psel_global)
+    .m_apb_psel_global(m_apb_psel_global),
+    .m_apb_pslverrmsg(m_apb_pslverrmsg_mux),
+    .m_apb_master_state(m_apb_master_state)
 );
 
 apb_slave_mux apb_slave_mux_block(
