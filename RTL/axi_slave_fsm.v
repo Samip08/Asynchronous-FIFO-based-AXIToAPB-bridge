@@ -71,6 +71,8 @@ reg [3:0] axi_wstrb_reg;
 reg sw_axi_awvalid_recieved, sw_axi_wvalid_recieved;
 reg sr_axi_arvalid_recieved,sr_axi_rvalid_recieved;
 reg mem_valid_recieved;
+
+reg w_addr_error;
 // reg aw_hs_done, w_hs_done;
 
 // wire sw_awaddr_handshake = (s_axi_awvalid && s_axi_awready) || aw_hs_done;
@@ -106,7 +108,7 @@ always@(*)begin
             end
 
             SW_RESPONSE:begin
-                if(s_axi_bready)begin
+                if(s_axi_bready|| w_addr_error)begin
                     sw_next_state = SW_IDLE;
                 end else begin
                     sw_next_state = SW_RESPONSE;
@@ -171,6 +173,7 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
         axi_wstrb_reg <= 0;
         sw_axi_awvalid_recieved <= 0;
         sw_axi_wvalid_recieved <= 0;
+        w_addr_error <= 0;
     end else begin
         sw_curr_state <= sw_next_state;
         if (sw_curr_state == SW_IDLE || sw_curr_state == SW_WAITING)begin
@@ -195,6 +198,7 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
                 s_axi_bvalid <=0;
                 wfifo_wen <= 0;
                 wfifo_wdata <= 0;
+                w_addr_error <= 0;
             end
 
             SW_WAITING:begin
@@ -216,8 +220,10 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
 
                 if( axi_awaddr_reg[31:28] == 4'h2)begin
                     s_axi_bresp <= 2'b10;
-                    wfifo_wen <= 1;    //checking output top_module_tb log w enable 1 for xxxxxxxxx value
-                    wfifo_wdata <= {1'b1, axi_awaddr_reg, 32'h0, axi_wstrb_reg};
+                    wfifo_wen <= 0;    //aint putting the value lil bro 
+                    w_addr_error <=1;
+                    wfifo_wdata <= 0;
+                    $display("AXI ERROR: Invalid Write Address %h! Rejecting  Transmission locally.", axi_awaddr_reg);
                 end else begin
                     s_axi_bresp <= 2'b00;
                     wfifo_wen <= 1;

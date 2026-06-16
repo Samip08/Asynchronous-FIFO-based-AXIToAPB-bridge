@@ -75,6 +75,7 @@ wire [ROM_ADDR_WIDTH-1:0] rom_addr;
 wire apb_rvalid_high = 1'b1; // always allowed to read
 wire apb_rvalid_received_status;
 
+
 axi_slave_fsm axi_slave_fsm_block(   
     .s_axi_aclk(s_axi_aclk),
     .s_axi_aresetn(s_axi_aresetn),

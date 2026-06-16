@@ -60,7 +60,7 @@ module Top_module_tb;
     assign pready_slaves = m_apb_psel; 
 
     // If Master targets Slave 2 (Address 0x20000000), drive a hardware error flag
-    assign pslverr_slaves = (m_apb_paddr[31:28] == 4'h2) ? m_apb_psel : {C_APB_NUM_SLAVES{1'b0}};
+    assign pslverr_slaves = (m_apb_paddr == 32'h4200_2222) ? m_apb_psel : {C_APB_NUM_SLAVES{1'b0}};
 
     // Constant data coming back from mock slaves
     assign prdata_slaves    = {C_APB_NUM_SLAVES{32'hc001d00d}}; 
@@ -178,7 +178,7 @@ module Top_module_tb;
             wait(s_axi_bvalid);
             @(posedge s_axi_aclk);
             s_axi_bready = 0;
-            $display("[%0t ns] [AXI INPUT] Stimulus complete. BRESP: 2'b%b", $time, s_axi_bresp);
+            $display("[%0t ns] [AXI INPUT] Stimulus complete. AXI_BRESP: 2'b%b", $time, s_axi_bresp);
         end
     endtask
 
@@ -187,7 +187,7 @@ module Top_module_tb;
     // =========================================================
     initial begin
         // Setup waveform tracking
-        $dumpfile("pipeline_doom.vcd");
+        $dumpfile("waves.vcd");
         $dumpvars(0, Top_module_tb);
 
         // Initial inputs
@@ -208,13 +208,26 @@ module Top_module_tb;
 
         $display("\n=== STARTING BRIDGE PIPELINE FLOW TEST ===");
 
-        // TEST 1: Write to Slave 5 (Clean execution path)
-        axi_master_write(32'h5000_CAFE, 32'hDEAD_BEEF);
-        #200;
+        // CASE 1: ADDRESS ERROR (The AXI Bouncer Test)
+        // Addr 0x8... is outside your 4'h4 range.
+        // Expectation: AXI catches this immediately and returns BRESP 2'b10 (SLVERR).
+        $display("\n[TEST 1] Testing ADDRESS ERROR...");
+        axi_master_write(32'h2000_1111, 32'hDEAD_BEEF);
+        #500;
 
-        // TEST 2: Write to Slave 2 (Intentionally triggers ERROR path)
-        axi_master_write(32'h2000_BABA, 32'hAAAA_5555);
-        #200;
+        // CASE 2: PERIPHERAL ERROR (The PSLVERR Test)
+        // Addr 0x2... targets Slave 2, which your TB is hardcoded to fail.
+        // Expectation: AXI lets it pass, APB triggers error, and BRESP 2'b10 returns.
+        $display("\n[TEST 2] Testing PERIPHERAL ERROR...");
+        axi_master_write(32'h4200_2222, 32'hBAAD_F00D);
+        #500;
+
+        // CASE 3: PERFECT WRITE (The Happy Path)
+        // Addr 0x5... is valid and healthy.
+        // Expectation: BRESP 2'b00 (OKAY).
+        $display("\n[TEST 3] Testing PERFECT WRITE...");
+        axi_master_write(32'h4500_3333, 32'hCAFE_BABE);
+        #500;
 
         repeat(20) @(posedge m_apb_pclk);
 

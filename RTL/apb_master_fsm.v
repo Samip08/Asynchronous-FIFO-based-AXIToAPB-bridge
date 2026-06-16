@@ -126,7 +126,7 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
         m_apb_psel_global <= 0;
         waiting_delay_cntr <= 0;
         psel_delay_cntr <= 0;
-        m_apb_rvalid_recieved <= 0;    
+        m_apb_rvalid_recieved <= 0;  
     end else begin
         m_curr_state <= m_next_state;
         m_apb_master_state <= m_next_state;
@@ -159,8 +159,13 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
             if(waiting_delay_cntr)begin
                 m_apb_pwrite_reg <= rfifo_data_latch[68];
                 m_apb_paddr_reg <= rfifo_data_latch[67:36];
-                m_apb_pwdata_reg <= rfifo_data_latch[35:4];
                 m_apb_pstrb_reg <= rfifo_data_latch[3:0];
+                if(m_apb_pslverr_mux&&m_apb_pslverrmsg)begin  
+                    m_apb_pwdata_reg <= 0;
+                end else begin
+                    m_apb_pwdata_reg <= rfifo_data_latch[35:4];
+
+                end
             end 
         end
 
@@ -184,8 +189,12 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
                 m_apb_psel_global <= 1;
                 m_apb_pwrite <= m_apb_pwrite_reg;
                 m_apb_paddr  <= m_apb_paddr_reg;
-                m_apb_pwdata <= m_apb_pwdata_reg;
                 m_apb_pstrb  <= m_apb_pstrb_reg;
+                if(m_apb_pslverr_mux&&m_apb_pslverrmsg)begin
+                    m_apb_pwdata <= 0;
+                end else begin 
+                    m_apb_pwdata <= m_apb_pwdata_reg;
+                end
             end
             if(psel_delay_cntr == 2) begin
                 m_apb_penable <= 1;
@@ -197,7 +206,6 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
             m_apb_penable     <= 1'b0;
             m_apb_rvalid_recieved <= 1'b0;
             $display("Failed Peripheral Address : 0x%h", m_apb_paddr_reg);
-            $display("Transaction Type          : %s", (m_apb_pwrite_reg ? "WRITE" : "READ"));
             $display("Hardware Error Payload    : 0x%h", m_apb_pslverrmsg); // Prints 0x0badc0de
         end
         endcase
