@@ -79,7 +79,7 @@ reg [DATA_WIDTH-1:0] sw_wfifo_wdata, sr_wfifo_wdata;
 assign wfifo_wen   = sw_wfifo_wen | sr_wfifo_wen;
 assign wfifo_wdata = sw_wfifo_wen ? sw_wfifo_wdata : sr_wfifo_wdata;
 
-reg w_addr_error;
+reg w_addr_error, r_addr_error;
 
 // reg aw_hs_done, w_hs_done;
 
@@ -145,13 +145,20 @@ always@(*)begin
 
             SR_READING:begin
                 if(!wfifo_full)begin
-                    sr_next_state = SR_WAITING_RESPONSE;
+                    if(r_addr_error) begin
+                        sr_next_state = SR_RESPONSE;
+                    end else begin
+                        sr_next_state = SR_WAITING_RESPONSE; 
+                    end
                 end else begin
-                sr_next_state = SR_READING;
+                    sr_next_state = SR_READING;
                 end
             end
 
             SR_WAITING_RESPONSE:begin
+                if(r_addr_error)begin
+                    sr_next_state = SR_IDLE;
+                end
                 if(!rfifo_empty)begin
                     sr_next_state = SR_RESPONSE;
                 end else begin
@@ -293,6 +300,7 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
         s_axi_rbusy<=0;
         sr_wfifo_wen <=0;
         sr_wfifo_wdata<= 0;
+        r_addr_error<=0;
     end else begin
         sr_curr_state <= sr_next_state;
         if (sr_curr_state == SR_IDLE || sr_curr_state == SR_READING)begin
@@ -310,20 +318,34 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
                 rfifo_ren <=0;
                 s_axi_rdata_return <=0;
                 sr_wfifo_wen<=0;
+                r_addr_error<=0;
                 if(sr_next_state != SR_READING)begin
                     s_axi_rbusy <= 0;
                 end else begin
                     s_axi_rbusy <=1;
+                    if(s_axi_araddr[31:28] == 4'h2)begin
+                        r_addr_error <=1;
+                    end
+
                 end
             end
 
             SR_READING:begin
                 if(!wfifo_full)begin
-                    s_axi_arready <= 1'b1;
-                    sr_wfifo_wdata <= {1'b0, axi_araddr_reg, 32'h0, 4'h0};
-                    sr_wfifo_wen <= 1'b1;
-                    s_axi_rresp <= 0;
-                    s_axi_rvalid <=0;
+                    if( axi_araddr_reg[31:28] == 4'h2)begin
+                        sr_wfifo_wen <= 0;    //aint putting the value lil bro 
+                        r_addr_error <=1;
+                        sr_wfifo_wdata <= 0;
+                        s_axi_arready <= 1'b1;
+                        s_axi_rvalid <= 1'b0;
+                        $display("AXI ERROR: Invalid Read Address %h! Rejecting  Transmission locally.", axi_araddr_reg);
+                    end else begin
+                        s_axi_arready <= 1'b1;
+                        sr_wfifo_wdata <= {1'b0, axi_araddr_reg, 32'h0, 4'h0};
+                        sr_wfifo_wen <= 1'b1;
+                        s_axi_rresp <= 0;
+                        s_axi_rvalid <=0;
+                    end
                 end else begin
                     s_axi_arready <= 1'b0;
                     sr_wfifo_wdata <= {1'b0, 32'h0, 32'h0, 4'h0};
@@ -338,10 +360,16 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
                 end else begin
                     rfifo_ren <=1'b0;
                 end
-                
             end
 
             SR_RESPONSE:begin
+                if (r_addr_error) begin
+                    s_axi_rresp <= 2'b10; // SLVERR for invalid address
+                    s_axi_rdata <= 32'h0;
+                end else begin
+                    s_axi_rresp <= 2'b00; // OKAY
+                    s_axi_rdata <= s_axi_response[35:4];
+                end
                 s_axi_rdata_return <= s_axi_response[35:4];
                 s_axi_rdata <= s_axi_response[35:4];
                 rfifo_ren<=1'b0;
