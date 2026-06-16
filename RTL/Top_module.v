@@ -2,7 +2,6 @@ module Top_module #(
     parameter C_APB_NUM_SLAVES = 16,
     parameter C_DATA_WIDTH     = 32,
     parameter C_ADDR_WIDTH     = 32,
-    parameter ROM_ADDR_WIDTH   = 5,
     parameter FIFO_ADDR_WIDTH  = 4,
     parameter APB_MASTER_DATA_WIDTH   = 69,
     parameter STRB_WIDTH       = 4        
@@ -56,6 +55,9 @@ module Top_module #(
     output wire [C_DATA_WIDTH-1:0]           m_apb_pwdata, 
     output wire [STRB_WIDTH-1:0]             m_apb_pstrb, 
     output wire                              apb_master_busy,
+    output wire                              s_axi_rbusy,
+
+    output wire [C_DATA_WIDTH-1:0]           s_axi_rdata_return,
 
     output wire [C_APB_NUM_SLAVES-1:0]       m_apb_psel, 
     output wire [C_DATA_WIDTH-1:0]           m_apb_pslverrmsg_mux,
@@ -67,14 +69,13 @@ module Top_module #(
 
 );
 
-wire[C_DATA_WIDTH-1:0] rom_data, m_apb_prdata;
-wire[APB_MASTER_DATA_WIDTH-1:0] wfifo_data, rfifo_data;
-wire wfifo_full, rom_valid, s_axi_ext_rena_rom, wfifo_ena, rfifo_empty, rfifo_ena,m_apb_pready, m_apb_pslverr_mux, m_apb_psel_global;
-wire [ROM_ADDR_WIDTH-1:0] rom_addr;
+wire[C_DATA_WIDTH-1:0] m_apb_prdata;
+wire[APB_MASTER_DATA_WIDTH-1:0] wfifo_data, rfifo_data, m_apb_read_response, s_axi_response;
+wire wfifo_full, wfifo_ena, rfifo_empty, rfifo_ena,m_apb_pready, m_apb_pslverr_mux, m_apb_psel_global;
 
 wire apb_rvalid_high = 1'b1; // always allowed to read
 wire apb_rvalid_received_status;
-
+wire wfifo_full_return, wfifo_ena_return, rfifo_ren_axi_read, rfifo_empty_axi_read;
 
 axi_slave_fsm axi_slave_fsm_block(   
     .s_axi_aclk(s_axi_aclk),
@@ -95,13 +96,15 @@ axi_slave_fsm axi_slave_fsm_block(
     // Read address input channels
     .s_axi_araddr(s_axi_araddr),
     .s_axi_arvalid(s_axi_arvalid),
-    .s_axi_rdata_rom(rom_data),
     // Read data input channels 
     .s_axi_rready(s_axi_rready),    //from main not rom 
 
-    .mem_valid(rom_valid),//comes from rom
+    //.mem_valid(rom_valid),//comes from rom
     // Async fifo status signals
     .wfifo_full(wfifo_full),
+    .rfifo_ren(rfifo_ren_axi_read),
+    .rfifo_empty(rfifo_empty_axi_read),
+    .s_axi_response(s_axi_response),
 
 
     // Write address output channels 
@@ -118,27 +121,30 @@ axi_slave_fsm axi_slave_fsm_block(
     .s_axi_rdata(s_axi_rdata),
     .s_axi_rresp(s_axi_rresp),
     .s_axi_rvalid(s_axi_rvalid),
-    .s_axi_rid(rom_addr),
-    .s_axi_ext_rena(s_axi_ext_rena_rom),
+    //.s_axi_rid(rom_addr),
+    //.s_axi_ext_rena(s_axi_ext_rena_rom),
 
     // Async fifo write interface
     .wfifo_wen(wfifo_ena),
     .wfifo_wdata(wfifo_data),
     .sw_axi_slave_state(sw_axi_slave_state),
-    .sr_axi_slave_state(sr_axi_slave_state)
+    .sr_axi_slave_state(sr_axi_slave_state),
+
+    .s_axi_rbusy(s_axi_rbusy),
+    .s_axi_rdata_return(s_axi_rdata_return)
 
 );
 
 
-rom_memory rom_memory_block(
-    .addr(rom_addr),//rom_addr width 
-    .read_en(s_axi_ext_rena_rom),
+// rom_memory rom_memory_block(
+//     .addr(rom_addr),//rom_addr width 
+//     .read_en(s_axi_ext_rena_rom),
 
-    .data(rom_data),
-    .valid(rom_valid)
-);
+//     .data(rom_data),
+//     .valid(rom_valid)
+// );
 
-async_fifo_core async_fifo_core_block (
+async_fifo_core async_fifo_Writing (
     // Write Domain Inputs (AXI Clock Domain)
     .wclk(s_axi_aclk),
     .wrst_n(s_axi_aresetn),
@@ -156,6 +162,24 @@ async_fifo_core async_fifo_core_block (
     .rempty(rfifo_empty)
 );
 
+async_fifo_core async_fifo_Reading (
+    // Write Domain Inputs (AXI Clock Domain)
+    .wclk(m_apb_pclk),
+    .wrst_n(m_apb_presetn),
+    .winc(wfifo_ena_return),  // from apb side when you give value make write high APB
+    .wdata(m_apb_read_response), // send high for ena when you give the read value from apb APB
+    // Read Domain Inputs (APB Clock Domain)
+    .rclk(s_axi_aclk),
+    .rrst_n(s_axi_aresetn),
+    .rinc(rfifo_ren_axi_read),  //rena will be high when a value comes on the axi side its on reading state still and the rfifo empty is false so value to read AXI
+
+    // Write Domain Outputs (AXI Clock Domain)
+    .wfull(wfifo_full_return), //  output driven by fifo to ensure writing from apb side doesnt overflow APB
+    // Read Domain Outputs (APB Clock Domain)
+    .rdata(s_axi_response),//read on axi side recieved on axi side  AXI
+    .rempty(rfifo_empty_axi_read)  // AXI
+);
+
 apb_master_fsm apb_master_fsm_block (
     .m_apb_pclk(m_apb_pclk), 
     .m_apb_presetn(m_apb_presetn), 
@@ -169,6 +193,7 @@ apb_master_fsm apb_master_fsm_block (
     .m_apb_prdata(m_apb_prdata), 
     .m_apb_pslverr_mux(m_apb_pslverr_mux),
     .m_apb_rvalid(apb_rvalid_high),
+    .wfifo_full_return(wfifo_full_return),
 
     // Outputs (to FIFO)
     .rfifo_ren(rfifo_ena),     
@@ -183,7 +208,9 @@ apb_master_fsm apb_master_fsm_block (
     .m_apb_rvalid_recieved(apb_rvalid_received_status),  //doesnt output
     .m_apb_psel_global(m_apb_psel_global),
     .m_apb_pslverrmsg(m_apb_pslverrmsg_mux),
-    .m_apb_master_state(m_apb_master_state)
+    .m_apb_master_state(m_apb_master_state),
+    .wfifo_ena_return(wfifo_ena_return),
+    .m_apb_read_response(m_apb_read_response)
 );
 
 apb_slave_mux apb_slave_mux_block(

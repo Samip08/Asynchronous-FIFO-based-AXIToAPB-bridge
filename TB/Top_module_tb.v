@@ -34,6 +34,10 @@ module Top_module_tb;
     wire [C_DATA_WIDTH-1:0]  s_axi_rdata;
     wire [1:0]               s_axi_rresp;
     wire                     s_axi_rvalid;
+    
+    // NEW AXI STATUS WIRES
+    wire                     s_axi_rbusy;
+    wire [C_DATA_WIDTH-1:0]  s_axi_rdata_return;
 
     // --- APB Bus Wires ---
     wire [C_ADDR_WIDTH-1:0]  m_apb_paddr;
@@ -50,7 +54,7 @@ module Top_module_tb;
     wire [C_APB_NUM_SLAVES-1:0]      pslverr_slaves;
     wire [(C_APB_NUM_SLAVES*32)-1:0] pslverrmsg_slaves;
     wire [2:0]                       m_apb_master_state;
-    wire [1:0]                       sw_axi_slave_state , sr_axi_slave_state;
+    wire [1:0]                       sw_axi_slave_state, sr_axi_slave_state;
     wire                             apb_master_busy;
 
     // =========================================================
@@ -59,7 +63,7 @@ module Top_module_tb;
     // Auto-assert pready whenever any slave's psel goes high
     assign pready_slaves = m_apb_psel; 
 
-    // If Master targets Slave 2 (Address 0x20000000), drive a hardware error flag
+    // Target Slave Error Logic
     assign pslverr_slaves = (m_apb_paddr == 32'h4200_2222) ? m_apb_psel : {C_APB_NUM_SLAVES{1'b0}};
 
     // Constant data coming back from mock slaves
@@ -78,27 +82,45 @@ module Top_module_tb;
         .s_axi_aresetn(s_axi_aresetn),
         .m_apb_pclk(m_apb_pclk),
         .m_apb_presetn(m_apb_presetn),
+        
+        // Write Address Channel
         .s_axi_awaddr(s_axi_awaddr),
         .s_axi_awvalid(s_axi_awvalid),
+        .s_axi_awready(s_axi_awready),
+        
+        // Write Data Channel
         .s_axi_wdata(s_axi_wdata),
         .s_axi_wvalid(s_axi_wvalid),
         .s_axi_wstrb(s_axi_wstrb),
-        .s_axi_bready(s_axi_bready),
-        .s_axi_araddr(s_axi_araddr),
-        .s_axi_arvalid(s_axi_arvalid),
-        .s_axi_rready(s_axi_rready),
-        .s_axi_awready(s_axi_awready),
         .s_axi_wready(s_axi_wready),
+        
+        // Write Response Channel
+        .s_axi_bready(s_axi_bready),
         .s_axi_bresp(s_axi_bresp),
         .s_axi_bvalid(s_axi_bvalid),
+        
+        // Read Address Channel
+        .s_axi_araddr(s_axi_araddr),
+        .s_axi_arvalid(s_axi_arvalid),
         .s_axi_arready(s_axi_arready),
+        
+        // Read Data Channel
+        .s_axi_rready(s_axi_rready),
         .s_axi_rdata(s_axi_rdata),
         .s_axi_rresp(s_axi_rresp),
         .s_axi_rvalid(s_axi_rvalid),
+        
+        // New Read Pipeline Connections
+        .s_axi_rbusy(s_axi_rbusy),
+        .s_axi_rdata_return(s_axi_rdata_return),
+
+        // APB Slave Side connections
         .prdata_slaves(prdata_slaves),
         .pready_slaves(pready_slaves),
         .pslverr_slaves(pslverr_slaves),
         .pslverrmsg_slaves(pslverrmsg_slaves),
+        
+        // APB Master Output Bus
         .m_apb_paddr(m_apb_paddr),
         .m_apb_penable(m_apb_penable),
         .m_apb_pwrite(m_apb_pwrite),
@@ -106,6 +128,8 @@ module Top_module_tb;
         .m_apb_pstrb(m_apb_pstrb),
         .m_apb_psel(m_apb_psel),
         .m_apb_pslverrmsg_mux(m_apb_pslverrmsg_mux),
+        
+        // Debug/State Tracking
         .m_apb_master_state(m_apb_master_state),
         .sw_axi_slave_state(sw_axi_slave_state),
         .sr_axi_slave_state(sr_axi_slave_state),
@@ -115,33 +139,26 @@ module Top_module_tb;
     // =========================================================
     // CLOCK GENERATION
     // =========================================================
-    // Fast AXI Clock: 100 MHz (10ns Period)
     initial s_axi_aclk = 0;
     always #5 s_axi_aclk = ~s_axi_aclk;
 
-    // Slower APB Clock: 25 MHz (40ns Period)
     initial m_apb_pclk = 0;
     always #20 m_apb_pclk = ~m_apb_pclk;
 
     // =========================================================
-    // APB BUS SNOOPER (THE MEANINGFUL DATA)
+    // APB BUS SNOOPER
     // =========================================================
-    // This block triggers exactly when the APB Master drives the bus
     always @(posedge m_apb_pclk) begin
         if (m_apb_presetn && m_apb_penable && m_apb_psel != 0) begin
-            
-            // Check if it's a Write or a Read
             if (m_apb_pwrite) begin
                 $display("[%0t ns] [APB SNOOP] WRITE Executed | Addr: 0x%h | TRUE Bus Data: 0x%h", 
                          $time, m_apb_paddr, m_apb_pwdata);
-            
             end else begin
                 if(!apb_master_busy)
                 $display("[%0t ns] [APB SNOOP] READ Executed  | Addr: 0x%h", 
                          $time, m_apb_paddr);
             end
 
-            // Check if the target slave threw a hardware error
             if (pslverr_slaves != 0) begin
                 $display("[%0t ns] >>>> [APB ERROR TRIGGERED] PSLVERR high for Addr: 0x%h!", 
                          $time, m_apb_paddr);
@@ -154,7 +171,6 @@ module Top_module_tb;
     // =========================================================
     task axi_master_write(input [31:0] addr, input [31:0] data);
         begin
-            // Wait for bridge to be ready to accept new requests
             if (apb_master_busy) begin
                 $display("[%0t ns] [WAIT] Bridge busy, waiting for IDLE...", $time);
                 wait(!apb_master_busy);
@@ -168,17 +184,46 @@ module Top_module_tb;
             s_axi_wstrb   = 4'hf;
             s_axi_bready  = 1;
 
-            // Wait for FSM handshakes
             wait(s_axi_awready && s_axi_wready);
             @(posedge s_axi_aclk);
             s_axi_awvalid = 0;
             s_axi_wvalid  = 0;
             
-            // Wait for completion (bvalid)
             wait(s_axi_bvalid);
             @(posedge s_axi_aclk);
             s_axi_bready = 0;
-            $display("[%0t ns] [AXI INPUT] Stimulus complete. AXI_BRESP: 2'b%b", $time, s_axi_bresp);
+            $display("[%0t ns] [AXI INPUT] Write Complete. AXI_BRESP: 2'b%b", $time, s_axi_bresp);
+        end
+    endtask
+
+    // =========================================================
+    // STIMULUS TASK: AXI READ TRANSACTION
+    // =========================================================
+    task axi_master_read(input [31:0] addr);
+        begin
+            // Protect against simultaneous or overlapping read processing
+            if (s_axi_rbusy) begin
+                $display("[%0t ns] [WAIT] Read path busy, waiting for IDLE...", $time);
+                wait(!s_axi_rbusy);
+            end
+
+            @(posedge s_axi_aclk);
+            s_axi_araddr  = addr;
+            s_axi_arvalid = 1;
+            
+            wait(s_axi_arready);
+            @(posedge s_axi_aclk);
+            s_axi_arvalid = 0;
+
+            s_axi_rready = 1; 
+            wait(s_axi_rvalid);
+            @(posedge s_axi_aclk);
+            
+            $display("[%0t ns] [AXI INPUT] Read Complete  | Data: 0x%h | AXI_RRESP: 2'b%b", 
+                     $time, s_axi_rdata, s_axi_rresp);
+            
+            s_axi_rready = 0;
+            @(posedge s_axi_aclk);
         end
     endtask
 
@@ -186,52 +231,57 @@ module Top_module_tb;
     // MAIN INITIAL BLOCK
     // =========================================================
     initial begin
-        // Setup waveform tracking
         $dumpfile("waves.vcd");
         $dumpvars(0, Top_module_tb);
 
-        // Initial inputs
+        // Reset state
         s_axi_awaddr  = 0; s_axi_awvalid = 0;
         s_axi_wdata   = 0; s_axi_wvalid  = 0; s_axi_wstrb = 0;
         s_axi_bready  = 0;
         s_axi_araddr  = 0; s_axi_arvalid = 0; s_axi_rready = 0;
 
-        // Assert resets
         s_axi_aresetn = 0;
         m_apb_presetn = 0;
         #100;
         
-        // Deassert resets
         s_axi_aresetn = 1;
         m_apb_presetn = 1;
         #50;
 
-        $display("\n=== STARTING BRIDGE PIPELINE FLOW TEST ===");
+        $display("\n=== STARTING BRIDGE PIPELINE WRITE TESTS ===");
 
-        // CASE 1: ADDRESS ERROR (The AXI Bouncer Test)
-        // Addr 0x8... is outside your 4'h4 range.
-        // Expectation: AXI catches this immediately and returns BRESP 2'b10 (SLVERR).
-        $display("\n[TEST 1] Testing ADDRESS ERROR...");
+        $display("\n[TEST 1] Testing WRITE ADDRESS ERROR...");
         axi_master_write(32'h2000_1111, 32'hDEAD_BEEF);
         #500;
 
-        // CASE 2: PERIPHERAL ERROR (The PSLVERR Test)
-        // Addr 0x2... targets Slave 2, which your TB is hardcoded to fail.
-        // Expectation: AXI lets it pass, APB triggers error, and BRESP 2'b10 returns.
-        $display("\n[TEST 2] Testing PERIPHERAL ERROR...");
+        $display("\n[TEST 2] Testing WRITE PERIPHERAL ERROR...");
         axi_master_write(32'h4200_2222, 32'hBAAD_F00D);
         #500;
 
-        // CASE 3: PERFECT WRITE (The Happy Path)
-        // Addr 0x5... is valid and healthy.
-        // Expectation: BRESP 2'b00 (OKAY).
         $display("\n[TEST 3] Testing PERFECT WRITE...");
         axi_master_write(32'h4500_3333, 32'hCAFE_BABE);
         #500;
 
+        $display("\n=== STARTING BRIDGE PIPELINE READ TESTS ===");
+
+        // CASE 4: READ ADDRESS ERROR
+        $display("\n[TEST 4] Testing READ ADDRESS ERROR...");
+        axi_master_read(32'h2000_5555); 
+        #500;
+
+        // CASE 5: READ PERIPHERAL ERROR 
+        $display("\n[TEST 5] Testing READ PERIPHERAL ERROR...");
+        axi_master_read(32'h4200_2222); 
+        #500;
+
+        // CASE 6: PERFECT READ
+        $display("\n[TEST 6] Testing PERFECT READ...");
+        axi_master_read(32'h4500_CAFE);
+        #500;
+
         repeat(20) @(posedge m_apb_pclk);
 
-        $display("=== SIMULATION COMPLETE ===");
+        $display("\n=== SIMULATION COMPLETE ===");
         $finish;
     end
 

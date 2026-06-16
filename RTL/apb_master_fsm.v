@@ -8,6 +8,8 @@ module apb_master_fsm #(
     // Inputs (from FIFO)
     input  wire                  rfifo_empty,  
     input  wire [DATA_WIDTH-1:0] rfifo_rdata,  
+    
+    input wire                   wfifo_full_return, //
 
     // Inputs (from Peripherals)
     input  wire                  m_apb_pready,
@@ -29,7 +31,10 @@ module apb_master_fsm #(
     output reg                   m_apb_penable,
     output reg                   m_apb_rvalid_recieved,
     output reg                   m_apb_psel_global,
-    output reg [2:0]             m_apb_master_state
+    output reg [2:0]             m_apb_master_state,
+
+    output reg                   wfifo_ena_return, //
+    output reg [DATA_WIDTH-1:0]  m_apb_read_response  //
 );
 
 parameter M_IDLE = 3'b000;
@@ -39,13 +44,14 @@ parameter M_WRITING = 3'b010;
 parameter M_RESPONSE = 3'b110; //basically error state
 
 reg [2:0] m_curr_state, m_next_state;
-reg [DATA_WIDTH-1:0] rfifo_data_latch;
+reg [DATA_WIDTH-1:0] rfifo_data_latch, m_apb_read_response_latch;
 reg [1:0]waiting_delay_cntr;
 reg [1:0] psel_delay_cntr;
 reg [31:0] fifo_request_rdata;
 reg m_apb_pwrite_reg;
 reg [31:0] m_apb_paddr_reg, m_apb_pwdata_reg;
 reg [3:0] m_apb_pstrb_reg;
+
 
 
 assign m_apb_busy = (m_curr_state != M_IDLE);
@@ -127,6 +133,8 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
         waiting_delay_cntr <= 0;
         psel_delay_cntr <= 0;
         m_apb_rvalid_recieved <= 0;  
+        wfifo_ena_return <= 0;
+        m_apb_read_response <= 0;
     end else begin
         m_curr_state <= m_next_state;
         m_apb_master_state <= m_next_state;
@@ -147,11 +155,13 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
             waiting_delay_cntr <= 0;
             psel_delay_cntr <= 0;
             m_apb_rvalid_recieved <= 0;
+            wfifo_ena_return <= 0;
 
         end
 
         M_WAITING:begin
             rfifo_ren <= 0;
+            wfifo_ena_return <= 0;
             if(m_next_state == M_WAITING)begin
             rfifo_data_latch <= rfifo_rdata;
             end
@@ -171,16 +181,21 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
         M_READING:begin
             //storing data in local register current, can be sent to response fifo via simple handshake no need for hardcoded delays
             if(m_apb_rvalid)begin
-                fifo_request_rdata <= m_apb_prdata;
                 m_apb_rvalid_recieved <= 1;
-
-            end else begin
+            end
+            if((m_apb_rvalid_recieved|| m_apb_rvalid)&& (!wfifo_full_return))begin
+                m_apb_read_response <= {1'b0, 32'h0, m_apb_prdata, 4'h0};
+                m_apb_read_response_latch <= {1'b0, 32'h0, m_apb_prdata, 4'h0};
+                wfifo_ena_return <= 1'b1;
+            end else if(!m_apb_rvalid_recieved)begin
+                wfifo_ena_return <= 0;
                 m_apb_psel_global <= 1;
                 m_apb_penable <= 1;
             end
         end
 
         M_WRITING:begin
+            wfifo_ena_return <= 0;
             if(psel_delay_cntr < 2) begin
                 psel_delay_cntr <= psel_delay_cntr + 1;
             end
@@ -204,6 +219,7 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
             m_apb_psel_global <= 1'b0;
             m_apb_penable     <= 1'b0;
             m_apb_rvalid_recieved <= 1'b0;
+            wfifo_ena_return <= 0;
             $display("Failed Peripheral Address : 0x%h", m_apb_paddr_reg);
             $display("Hardware Error Payload    : 0x%h", m_apb_pslverrmsg); // Prints 0x0badc0de
         end
