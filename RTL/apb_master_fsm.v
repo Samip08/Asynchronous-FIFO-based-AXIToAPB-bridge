@@ -160,11 +160,10 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
                 m_apb_pwrite_reg <= rfifo_data_latch[68];
                 m_apb_paddr_reg <= rfifo_data_latch[67:36];
                 m_apb_pstrb_reg <= rfifo_data_latch[3:0];
-                if(m_apb_pslverr_mux&&m_apb_pslverrmsg)begin  
-                    m_apb_pwdata_reg <= 0;
-                end else begin
+                if(!m_apb_pslverr_mux)begin  
                     m_apb_pwdata_reg <= rfifo_data_latch[35:4];
-
+                end else begin
+                    m_apb_pwdata_reg <= 0;
                 end
             end 
         end
@@ -190,10 +189,10 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
                 m_apb_pwrite <= m_apb_pwrite_reg;
                 m_apb_paddr  <= m_apb_paddr_reg;
                 m_apb_pstrb  <= m_apb_pstrb_reg;
-                if(m_apb_pslverr_mux&&m_apb_pslverrmsg)begin
-                    m_apb_pwdata <= 0;
-                end else begin 
+                if(!m_apb_pslverr_mux)begin
                     m_apb_pwdata <= m_apb_pwdata_reg;
+                end else begin 
+                    m_apb_pwdata <= 0;
                 end
             end
             if(psel_delay_cntr == 2) begin
