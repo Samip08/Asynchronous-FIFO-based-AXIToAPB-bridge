@@ -46,7 +46,7 @@ parameter M_RESPONSE = 3'b110; //basically error state
 reg [2:0] m_curr_state, m_next_state;
 reg [DATA_WIDTH-1:0] rfifo_data_latch, m_apb_read_response_latch;
 reg [1:0]waiting_delay_cntr;
-reg [1:0] psel_delay_cntr;
+reg [1:0] pselw_delay_cntr, pselr_delay_cntr;
 reg [31:0] fifo_request_rdata;
 reg m_apb_pwrite_reg;
 reg [31:0] m_apb_paddr_reg, m_apb_pwdata_reg;
@@ -87,7 +87,9 @@ always@(*)begin
                 if (m_apb_pslverr_mux)begin
                     m_next_state = M_RESPONSE;
                 end else begin
-                    m_next_state = M_IDLE;
+                    if(pselr_delay_cntr == 3)begin
+                        m_next_state = M_IDLE;
+                    end
                 end
             end else begin
                 m_next_state = M_READING;
@@ -95,7 +97,7 @@ always@(*)begin
         end
 
         M_WRITING:begin
-            if(psel_delay_cntr < 2) begin
+            if(pselw_delay_cntr < 2) begin
                 m_next_state = M_WRITING;
             end else if(m_apb_pready || m_apb_pslverr_mux) begin
                 if (m_apb_pready) begin // Added error redirection for writes
@@ -131,10 +133,11 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
         m_apb_penable <= 0;
         m_apb_psel_global <= 0;
         waiting_delay_cntr <= 0;
-        psel_delay_cntr <= 0;
+        pselw_delay_cntr <= 0;
         m_apb_rvalid_recieved <= 0;  
         wfifo_ena_return <= 0;
         m_apb_read_response <= 0;
+        pselr_delay_cntr <=0;
     end else begin
         m_curr_state <= m_next_state;
         m_apb_master_state <= m_next_state;
@@ -153,9 +156,10 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
             m_apb_penable <= 0;
             m_apb_psel_global <= 0;
             waiting_delay_cntr <= 0;
-            psel_delay_cntr <= 0;
+            pselw_delay_cntr <= 0;
             m_apb_rvalid_recieved <= 0;
             wfifo_ena_return <= 0;
+            pselr_delay_cntr<=0;
 
         end
 
@@ -171,35 +175,67 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
                 m_apb_paddr_reg <= rfifo_data_latch[67:36];
                 m_apb_pstrb_reg <= rfifo_data_latch[3:0];
                 if(!m_apb_pslverr_mux)begin  
+                    if(rfifo_data_latch[68])begin
                     m_apb_pwdata_reg <= rfifo_data_latch[35:4];
+                    end else begin
+                    m_apb_pwdata_reg <= 0;
+                    end
                 end else begin
                     m_apb_pwdata_reg <= 0;
                 end
             end 
         end
 
+        // M_READING:begin
+        //     //storing data in local register current, can be sent to response fifo via simple handshake no need for hardcoded delays
+        //     if(m_apb_rvalid)begin
+        //         m_apb_rvalid_recieved <= 1;
+        //     end
+        //     if((m_apb_rvalid_recieved|| m_apb_rvalid)&& (!wfifo_full_return))begin
+        //         m_apb_read_response <= {1'b0, 32'h0, m_apb_prdata, 4'h0};
+        //         m_apb_read_response_latch <= {1'b0, 32'h0, m_apb_prdata, 4'h0};
+        //         wfifo_ena_return <= 1'b1;
+        //     end else if(!m_apb_rvalid_recieved)begin
+        //         wfifo_ena_return <= 0;
+        //         m_apb_psel_global <= 1;
+        //         m_apb_penable <= 1;
+        //     end
+        // end
+
         M_READING:begin
-            //storing data in local register current, can be sent to response fifo via simple handshake no need for hardcoded delays
-            if(m_apb_rvalid)begin
-                m_apb_rvalid_recieved <= 1;
+            if(pselr_delay_cntr < 3) begin
+                pselr_delay_cntr <= pselr_delay_cntr + 1;
             end
-            if((m_apb_rvalid_recieved|| m_apb_rvalid)&& (!wfifo_full_return))begin
+            
+            if(pselr_delay_cntr == 1) begin
+                m_apb_psel_global <= 1'b1;
+                m_apb_pwrite      <= 1'b0;               
+                m_apb_paddr       <= m_apb_paddr_reg; 
+            end
+            
+            if(pselr_delay_cntr == 2) begin
+                m_apb_penable <= 1'b1; 
+            end
+
+            if(m_apb_rvalid)begin
+                m_apb_rvalid_recieved <= 1'b1;
+            end
+            
+            if((m_apb_rvalid_recieved || m_apb_rvalid) && (!wfifo_full_return)&&(pselr_delay_cntr == 3))begin
                 m_apb_read_response <= {1'b0, 32'h0, m_apb_prdata, 4'h0};
                 m_apb_read_response_latch <= {1'b0, 32'h0, m_apb_prdata, 4'h0};
                 wfifo_ena_return <= 1'b1;
             end else if(!m_apb_rvalid_recieved)begin
-                wfifo_ena_return <= 0;
-                m_apb_psel_global <= 1;
-                m_apb_penable <= 1;
+                wfifo_ena_return <= 1'b0;
             end
         end
 
         M_WRITING:begin
             wfifo_ena_return <= 0;
-            if(psel_delay_cntr < 2) begin
-                psel_delay_cntr <= psel_delay_cntr + 1;
+            if(pselw_delay_cntr < 2) begin
+                pselw_delay_cntr <= pselw_delay_cntr + 1;
             end
-            if(psel_delay_cntr == 1) begin
+            if(pselw_delay_cntr == 1) begin
                 m_apb_psel_global <= 1;
                 m_apb_pwrite <= m_apb_pwrite_reg;
                 m_apb_paddr  <= m_apb_paddr_reg;
@@ -210,7 +246,7 @@ always@(posedge m_apb_pclk or negedge m_apb_presetn)begin
                     m_apb_pwdata <= 0;
                 end
             end
-            if(psel_delay_cntr == 2) begin
+            if(pselw_delay_cntr == 2) begin
                 m_apb_penable <= 1;
             end
         end

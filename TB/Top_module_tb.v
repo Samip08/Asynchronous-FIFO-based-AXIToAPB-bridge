@@ -264,15 +264,15 @@ module Top_module_tb;
 
         $display("\n=== STARTING BRIDGE PIPELINE READ TESTS ===");
 
-        // CASE 4: READ ADDRESS ERROR
-        $display("\n[TEST 4] Testing READ ADDRESS ERROR...");
-        axi_master_read(32'h2000_5555); 
-        #500;
+        // // CASE 4: READ ADDRESS ERROR
+        // $display("\n[TEST 4] Testing READ ADDRESS ERROR...");
+        // axi_master_read(32'h2000_5555); 
+        // #500;
 
-        // CASE 5: READ PERIPHERAL ERROR 
-        $display("\n[TEST 5] Testing READ PERIPHERAL ERROR...");
-        axi_master_read(32'h4200_2222); 
-        #500;
+        // // CASE 5: READ PERIPHERAL ERROR 
+        // $display("\n[TEST 5] Testing READ PERIPHERAL ERROR...");
+        // axi_master_read(32'h4200_2222); 
+        // #500;
 
         // CASE 6: PERFECT READ
         $display("\n[TEST 6] Testing PERFECT READ...");

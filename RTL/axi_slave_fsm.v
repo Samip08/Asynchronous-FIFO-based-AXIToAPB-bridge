@@ -332,6 +332,7 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
             end
 
             SR_WAITING_RESPONSE:begin
+                sr_wfifo_wen <= 1'b0;
                 if(!rfifo_empty)begin
                     rfifo_ren<= 1'b1;
                 end else begin
@@ -342,6 +343,7 @@ always@(posedge s_axi_aclk or negedge s_axi_aresetn)begin
 
             SR_RESPONSE:begin
                 s_axi_rdata_return <= s_axi_response[35:4];
+                s_axi_rdata <= s_axi_response[35:4];
                 rfifo_ren<=1'b0;
                 s_axi_arready <= 0;
                 s_axi_rresp <= 0;
