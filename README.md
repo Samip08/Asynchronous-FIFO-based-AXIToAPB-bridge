@@ -1,3 +1,4 @@
+## DESIGN CHOICES
 ### asynch_fifo_core.v
 * gray coded pointers for synchronizing across read and write clk domains, using binary for local usage
 * gray code pointers used only empty full logic
@@ -5,6 +6,7 @@
 * rptr_gray_next, wptr_gray_next ensure the empty/full condition flips at correct clk cycle prevent overwrite/reading garbage value
 * using rptr/wptr for empty/full logic allows wptr to go above 10(16 height) to 11 while rptr is at 00 essentially overwriting data
 * rptr reads a data yet to be published from write side
+* 2 main fifos in the structure a write side fifo used incase of either a write request or a read request from the axi side and a response fifo triggered only for sending a read data response back
 ![alt text](Waveforms/overwriting_wptr_full.png)
 ![alt text](Waveforms/reading_unpublished_rptr_empty.png)
 
@@ -12,17 +14,17 @@
 ![alt text](/Waveforms/working_async_fifo.png)
 
 ### axi_slave_fsm.v
-* works with elaborative writing tb and with read tb
+* works with elaborative writing tb and with read tb //older test
 ![alt text](Waveforms/axi_slave.png)
-* also removed the enable to write incase of error and put value of xxxxxxxx
+* also removed the enable to write incase of error and put value of 32'h0
+* two major errors resolved incase of write including a pslverr error on the apb_master side incase of a peripheral failure and an address error locally detected with address[31:28]== 4'h2
+* read error resolved locally simialr to write case for wrong address being sent to read
 
 * in the write part the valid signals usually come together but might come apart by 1 cycle hence need to be latched and need to have a recieved toggle because for state shift we might not have both high together
-
-
 * write next state machine reset/base state idle expecting valid signals
 * waiting signal recieved one/both signals waits till recieves both to shift to next state and fifo shouldnt be full better stall here than at writing state or else overwrite in latches might happen
 * write changes state next cycle without any condition , ensuring that master recives the value 
-*response finally changes back to idle when the bready signal comes which says master recieved value
+* response finally changes back to idle when the bready signal comes which says master recieved value
 
 
 * write state function machine has asynchronous reset
@@ -37,18 +39,14 @@
 
 
 * read next state machine reset/base state is idle expecting the single valid signal for address
-* recieves address to be fetched value of from local regs(rom_memory.v, memory has been downscaled to last 5 bits 32 32 bit local memory registers)
-* once recieved data from rom_memory goes to response to signal proper response from slave side
-
+* recieves address to be fetched value of from peripheral side, stays waiting for a response till the apb master sends back a s_axi_response containing only the data from the peripheral , accodmodation included for data address/slave address too.
 
 * write state function machine checks for a single valid signal in idle or reading state for address recieving latches the address and the recieved
 * signal flow 
     slave side(module) <-- s_axi_arvalid(ready to send address),s_axi_araddr(address)
     slave side-->master s_axi_arready(tell master latched address, recieved is high)
-    slave side--> rom_memory.v(memory register)  s_axi_rid(address to be fetched), s_axi_ext_rena(enable for rom to recieve the address)
-    rom_memory.v--> slave side(module) mem_valid(sending data), s_axi_rdata_rom(actual data)
-    slave side--> master s_axi_rvalid(sent signal), s_axi_rresp
-    master--> slave side s_axi_rready(master has recieved signal)
+    slave side --> sets busy signal high to prevent spamming of more information till current read finishes sr_wfifo_wen, sr_wfifo_wdata sent via the writig side fifo to the apb master side
+    slave side in waiting response state waits for the reposnse fifo the have rfifo_empty as low meaning a reposnse has returned, read for data latched locally when rfifo_ren goes high
 
 ### apb_master_fsm.v
 * working with the read, write error handling integrated case
@@ -61,6 +59,9 @@
 * in M_READING state sends m_apb_psel_global asking peripheral to wakeup alongside m_pb_penable triggering m_apb_valid when it reads the sent data and sends a recived signal back next cycle reads m_apb_pready goes to M_IDLE state
 * M_WRITING has a counter for checking 2 as when it is 1 we write previously latched output and send alongside m_apb_psel_global waking up peripheral next cycle sends m_apb_penable high to ensure value is read on the other side when it recives m_apb_pready goes to M_IDLE state
 * if anypoint here instead of M_IDLE it faces an error m_apb_pslverr_mux goes high pushing into M_RESPONSE for error log sets all data exit flags 0 and returns to M_IDLE.
+
+* M_READING has a similar setup for checking 3 counter this ensures all the data has time to efficiently be latched before an enable sends the data to the axi side 
+* address sent by the axi side for a read is read and the particular slave's data is chosen from the apb_slave+mux side 
 
 
 ### apb_slave_mux.v
