@@ -1,0 +1,10 @@
+     3/15: $0\r_addr_error[0:0]
+     8/14: $0\w_addr_error[0:0]
+Creating register for signal `\axi_slave_fsm.\r_addr_error' using process `\axi_slave_fsm.$proc$/openlane/designs/chiptop/src/axi_slave_fsm.v:288$58'.
+Creating register for signal `\axi_slave_fsm.\w_addr_error' using process `\axi_slave_fsm.$proc$/openlane/designs/chiptop/src/axi_slave_fsm.v:184$47'.
+  found ctrl input: \axi_slave_fsm_block.r_addr_error
+  ctrl inputs: { \async_fifo_Reading.rempty \async_fifo_Writing.wfull \axi_slave_fsm_block.r_addr_error $flatten\axi_slave_fsm_block.$logic_and$/openlane/designs/chiptop/src/axi_slave_fsm.v:139$44_Y \s_axi_rready \s_axi_aresetn }
+    3: \axi_slave_fsm_block.r_addr_error
+Adding EN signal on $flatten\axi_slave_fsm_block.$procdff$1089 ($adff) from module Top_module (D = $flatten\axi_slave_fsm_block.$0\w_addr_error[0:0], Q = \axi_slave_fsm_block.w_addr_error).
+Adding EN signal on $flatten\axi_slave_fsm_block.$procdff$1073 ($adff) from module Top_module (D = $flatten\axi_slave_fsm_block.$0\r_addr_error[0:0], Q = \axi_slave_fsm_block.r_addr_error).
+ABC: Error: The network is combinational.
